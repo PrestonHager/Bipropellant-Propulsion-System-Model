@@ -1,0 +1,9 @@
+.venv/
+.vscode/
+
+# Matplotlib Images
+*.png
+
+# Data files
+*.csv
+*.npz
