@@ -21,6 +21,9 @@ Tst = 273.15
 Pst = 101325
 rhost = Pst/(R_N2*Tst)
 
+# Change this based on what propellant is being used
+# Note that it is used with CoolProp to calculate fluid properties
+PROPELLANT = 'methanol'
  
 #-------------------------------------------------------
 #-------------- Initial Conditions ---------------------
@@ -72,7 +75,7 @@ m_2_0 = rho_2_0*(V_2 - m_4_0/rho_4_L)
 U_0_0 = m_0_0*PropsSI('U','P',P_0_0,'T',T_0_0,'Nitrogen')
 U_1_0 = m_1_0*PropsSI('U','P',P_1_0,'T',T_1_0,'Nitrogen')
 U_2_0 = m_2_0*PropsSI('U','P',P_2_0,'T',T_2_0,'Nitrogen')
-U_3_0 = m_3_0*PropsSI('U','P',P_3_0,'T',T_3_0,'ethanol') #Idk if this is the right thing
+U_3_0 = m_3_0*PropsSI('U','P',P_3_0,'T',T_3_0,'{PROPELLANT}') #Idk if this is the right thing
 U_4_0 = m_4_0*PropsSI('U','P',P_4_0,'T',T_4_0,'N2O')
 '''
 
@@ -261,7 +264,7 @@ def implicit_algebraic_equations(x, z, t, P_guess, T):
                 F[i - 2 + Nodes] = m_dot[i-2] - Kv_Component_N2(P_1, P_2, T, K_v)
             elif System.loc[int(System.loc[i]['Upstream Node'])]['Fluid'] == 'Nitrous Oxide': #Check if the fluid is nitrous
                 F[i - 2 + Nodes] = m_dot[i-2] - Kv_Component_Liq(P_1, P_2, rho_4_L, K_v)
-            else: #Otherwise, fluid is ethanol
+            else: #Otherwise, fluid is {PROPELLANT}
                 F[i - 2 + Nodes] = m_dot[i-2] - Kv_Component_Liq(P_1, P_2, rho_3_L, K_v)
 
         elif System.loc[i]['Element Type'] == 'Pipe':
@@ -273,9 +276,9 @@ def implicit_algebraic_equations(x, z, t, P_guess, T):
             elif System.loc[int(System.loc[i]['Upstream Node'])]['Fluid'] == 'Nitrous Oxide': #Check if the fluid is nitrous
                 rho = rho_4_L
                 mu = PropsSI('V','P',P_1,'T',298,'Water')
-            else: #Otherwise, fluid is ethanol
+            else: #Otherwise, fluid is {PROPELLANT}
                 rho = rho_3_L
-                mu = PropsSI('V','P',P_1,'T',298,'ethanol')
+                mu = PropsSI('V','P',P_1,'T',298,'{PROPELLANT}')
             F[i - 2 + Nodes] = P_1 - P_2 - Pipe(m_dot[i-2],rho,mu,L,D,k)
 
         elif System.loc[i]['Element Type'] == 'Valve':
@@ -283,7 +286,7 @@ def implicit_algebraic_equations(x, z, t, P_guess, T):
             K_v_max = System.loc[i]['Param. 4 Value']
             if System.loc[int(System.loc[i]['Upstream Node'])]['Fluid'] == 'Nitrous Oxide': #Check if the fluid is nitrous
                 F[i - 2 + Nodes] = m_dot[i-2] - Ox_Valve(P_1, P_2, K_v_max, t)
-            else: #Otherwise, fluid is ethanol
+            else: #Otherwise, fluid is {PROPELLANT}
                 F[i - 2 + Nodes] = m_dot[i-2] - Fuel_Valve(P_1, P_2, K_v_max, t)
 
         elif System.loc[i]['Element Type'] == 'Injector':
@@ -293,7 +296,7 @@ def implicit_algebraic_equations(x, z, t, P_guess, T):
             if System.loc[int(System.loc[i]['Upstream Node'])]['Fluid'] == 'Nitrous Oxide': #Check if the fluid is nitrous
                 C_d = C_d*np.interp(t, [0, 3.9, 4.4, 9, 9.5, 10], [0.6, 0.6, 0.2, 0.2, 0.6, 0.6]) # Define the Kv of the valve based on a predefined path
                 F[i - 2 + Nodes] = m_dot[i-2] - SPI_Injector(P_1,P_2,rho_4_L,A,C_d)
-            else: #Otherwise, fluid is ethanol
+            else: #Otherwise, fluid is {PROPELLANT}
                 C_d = C_d*np.interp(t, [0, 4, 4.5, 9.1, 9.6, 10], [0.9, 0.9, 0.3, 0.3, 0.9, 0.9]) # Define the Kv of the valve based on a predefined path
                 F[i - 2 + Nodes] = m_dot[i-2] - SPI_Injector(P_1,P_2,rho_3_L,A,C_d)
 
