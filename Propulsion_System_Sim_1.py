@@ -4,6 +4,7 @@ from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
 from CoolProp.CoolProp import PropsSI
 import pandas as pd
+from datetime import datetime
 #import diffeqpy
 #from diffeqpy import de
 
@@ -71,7 +72,7 @@ m_2_0 = rho_2_0*(V_2 - m_4_0/rho_4_L)
 U_0_0 = m_0_0*PropsSI('U','P',P_0_0,'T',T_0_0,'Nitrogen')
 U_1_0 = m_1_0*PropsSI('U','P',P_1_0,'T',T_1_0,'Nitrogen')
 U_2_0 = m_2_0*PropsSI('U','P',P_2_0,'T',T_2_0,'Nitrogen')
-U_3_0 = m_3_0*PropsSI('U','P',P_3_0,'T',T_3_0,'Methanol') #Idk if this is the right thing
+U_3_0 = m_3_0*PropsSI('U','P',P_3_0,'T',T_3_0,'ethanol') #Idk if this is the right thing
 U_4_0 = m_4_0*PropsSI('U','P',P_4_0,'T',T_4_0,'N2O')
 '''
 
@@ -260,7 +261,7 @@ def implicit_algebraic_equations(x, z, t, P_guess, T):
                 F[i - 2 + Nodes] = m_dot[i-2] - Kv_Component_N2(P_1, P_2, T, K_v)
             elif System.loc[int(System.loc[i]['Upstream Node'])]['Fluid'] == 'Nitrous Oxide': #Check if the fluid is nitrous
                 F[i - 2 + Nodes] = m_dot[i-2] - Kv_Component_Liq(P_1, P_2, rho_4_L, K_v)
-            else: #Otherwise, fluid is methanol
+            else: #Otherwise, fluid is ethanol
                 F[i - 2 + Nodes] = m_dot[i-2] - Kv_Component_Liq(P_1, P_2, rho_3_L, K_v)
 
         elif System.loc[i]['Element Type'] == 'Pipe':
@@ -272,9 +273,9 @@ def implicit_algebraic_equations(x, z, t, P_guess, T):
             elif System.loc[int(System.loc[i]['Upstream Node'])]['Fluid'] == 'Nitrous Oxide': #Check if the fluid is nitrous
                 rho = rho_4_L
                 mu = PropsSI('V','P',P_1,'T',298,'Water')
-            else: #Otherwise, fluid is methanol
+            else: #Otherwise, fluid is ethanol
                 rho = rho_3_L
-                mu = PropsSI('V','P',P_1,'T',298,'methanol')
+                mu = PropsSI('V','P',P_1,'T',298,'ethanol')
             F[i - 2 + Nodes] = P_1 - P_2 - Pipe(m_dot[i-2],rho,mu,L,D,k)
 
         elif System.loc[i]['Element Type'] == 'Valve':
@@ -282,7 +283,7 @@ def implicit_algebraic_equations(x, z, t, P_guess, T):
             K_v_max = System.loc[i]['Param. 4 Value']
             if System.loc[int(System.loc[i]['Upstream Node'])]['Fluid'] == 'Nitrous Oxide': #Check if the fluid is nitrous
                 F[i - 2 + Nodes] = m_dot[i-2] - Ox_Valve(P_1, P_2, K_v_max, t)
-            else: #Otherwise, fluid is methanol
+            else: #Otherwise, fluid is ethanol
                 F[i - 2 + Nodes] = m_dot[i-2] - Fuel_Valve(P_1, P_2, K_v_max, t)
 
         elif System.loc[i]['Element Type'] == 'Injector':
@@ -292,7 +293,7 @@ def implicit_algebraic_equations(x, z, t, P_guess, T):
             if System.loc[int(System.loc[i]['Upstream Node'])]['Fluid'] == 'Nitrous Oxide': #Check if the fluid is nitrous
                 C_d = C_d*np.interp(t, [0, 3.9, 4.4, 9, 9.5, 10], [0.6, 0.6, 0.2, 0.2, 0.6, 0.6]) # Define the Kv of the valve based on a predefined path
                 F[i - 2 + Nodes] = m_dot[i-2] - SPI_Injector(P_1,P_2,rho_4_L,A,C_d)
-            else: #Otherwise, fluid is methanol
+            else: #Otherwise, fluid is ethanol
                 C_d = C_d*np.interp(t, [0, 4, 4.5, 9.1, 9.6, 10], [0.9, 0.9, 0.3, 0.3, 0.9, 0.9]) # Define the Kv of the valve based on a predefined path
                 F[i - 2 + Nodes] = m_dot[i-2] - SPI_Injector(P_1,P_2,rho_3_L,A,C_d)
 
@@ -418,23 +419,34 @@ plt.show()
 #print('Mass Flows: ',m_dot)
 '''
 
+start_sol = datetime.now() # Start timer
 # Solve the DAE
 sol = solve_ivp(dae_system, t_span, z0, t_eval=t_eval, method='LSODA')
+end_sol = datetime.now() # End timer
 
 # Access the solution
 t = sol.t
 m_0, m_1, m_2, m_3, m_4 = sol.y
 
 #Plot some stuff
-
-
 P = np.zeros((len(m_0),Nodes))
 m_dot = np.zeros((len(m_0),FlowElements))
 T = np.zeros(len(m_0))
 
+start_alg = datetime.now() # Start timer
 for i in range(0, len(P)):
     P[i,:], m_dot[i,:], T[i] = algebraic_equations(t[i], [m_0[i],m_1[i],m_2[i],m_3[i],m_4[i]])
+end_alg = datetime.now() # End timer
 
+print("Time to solve: ", end_sol-start_sol)
+print("Time for algebraic equations: ", end_alg-start_alg)
+
+# Save the solution to a file
+file_name = "Results_" + datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+np.savez_compressed(file_name, t=t, m_0=m_0, m_1=m_1, m_2=m_2, m_3=m_3, m_4=m_4, P=P, m_dot=m_dot, T=T)
+
+# Create figures for each plot
+fig1 = plt.figure("Mass Flow Rate over Time")
 for i in range(0, FlowElements):
     label = 'm_dot_' + str(i+2)
     plt.plot(t,m_dot[:,i], label=label)
@@ -443,18 +455,18 @@ plt.minorticks_on()
 plt.grid(which='minor',axis='both',linewidth = 0.2)
 plt.xlabel('Time [s]')
 plt.ylabel('Mass Flow Rate [kg/s]')
-plt.legend()
-plt.show()
+fig1.legend()
 
+fig2 = plt.figure("Temperature over Time")
 plt.plot(t,T, label='T')
 plt.grid(which='major',axis='both',linewidth = 0.8)
 plt.minorticks_on()
 plt.grid(which='minor',axis='both',linewidth = 0.2)
 plt.xlabel('Time [s]')
 plt.ylabel('Temperature [K]')
-plt.legend()
-plt.show()
+fig2.legend()
 
+fig3 = plt.figure("Pressure over Time (Low Pressure)")
 for i in range(0, Nodes):
     label = 'P_' + str(i)
     plt.plot(t,P[:,i]*1e-5, label=label)
@@ -464,9 +476,9 @@ plt.grid(which='minor',axis='both',linewidth = 0.2)
 plt.xlabel('Time [s]')
 plt.ylabel('Pressure [bar]')
 plt.ylim(0,55)
-plt.legend()
-plt.show()
+fig3.legend()
 
+fig4 = plt.figure("Pressure over Time (High Pressure)")
 for i in range(0, Nodes):
     label = 'P_' + str(i)
     plt.plot(t,P[:,i]*1e-5, label=label)
@@ -476,9 +488,9 @@ plt.grid(which='minor',axis='both',linewidth = 0.2)
 plt.xlabel('Time [s]')
 plt.ylabel('Pressure [bar]')
 plt.ylim(0,400)
-plt.legend()
-plt.show()
+fig4.legend()
 
+fig5 = plt.figure("Mass over Time")
 plt.plot(t,m_0, label='m_0')
 plt.plot(t,m_1, label='m_1')
 plt.plot(t,m_2, label='m_2')
@@ -489,14 +501,15 @@ plt.minorticks_on()
 plt.grid(which='minor',axis='both',linewidth = 0.2)
 plt.xlabel('Time [s]')
 plt.ylabel('Mass [kg]')
-plt.legend()
-plt.show()
+fig5.legend()
 
-
+fig6 = plt.figure("OF Ratio over Time")
 plt.plot(t,m_dot[:,3]/m_dot[:,4])
 plt.grid(which='major',axis='both',linewidth = 0.8)
 plt.minorticks_on()
 plt.grid(which='minor',axis='both',linewidth = 0.2)
 plt.xlabel('Time [s]')
 plt.ylabel('OF Ratio')
+
+# Show all figures
 plt.show()
